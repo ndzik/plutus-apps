@@ -74,7 +74,7 @@ You then need some boilerplate to compile the validator to a Plutus script (see 
    :start-after: BLOCK3
    :end-before: BLOCK4
 
-The :hsobj:`Ledger.Typed.Scripts.Validators.ValidatorTypes` class defines the types of the validator, and ``splitValidator`` contains the compiled Plutus core code of ``validateSplit``.
+The :hsobj:`Plutus.Script.Utils.V1.Typed.Scripts.Validators.ValidatorTypes` class defines the types of the validator, and ``splitValidator`` contains the compiled Plutus core code of ``validateSplit``.
 
 Asking for input
 ----------------
@@ -146,7 +146,7 @@ All that's missing now is the code for retrieving the funds, and some glue to pu
 
 In ``unlockFunds`` you use the constraints library to build the spending transaction.
 Here, ``tx`` combines three different constraints.
-``collectFromScript`` takes the script outputs in ``unspentOutputs`` and adds them as input to the transaction, using the unit ``()`` as the redeemer.
+``Constraints.collectFromTheScript`` takes the script outputs in ``unspentOutputs`` and adds them as input to the transaction, using the unit ``()`` as the redeemer.
 The other two constraints use ``mustPayToPubKey`` to add payments for the recipients.
 
 Deploying the app on the Playground

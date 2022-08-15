@@ -23,7 +23,6 @@ import Ledger (DiffMilliSeconds (DiffMilliSeconds), Interval (Interval), LowerBo
 import Ledger qualified
 import Ledger.Ada qualified as Ada
 import Ledger.Bytes as Bytes
-import Ledger.Fee (FeeConfig (..), calcFees)
 import Ledger.Generators qualified as Gen
 import Ledger.Interval qualified as Interval
 import Ledger.TimeSlot (SlotConfig (..))
@@ -31,6 +30,7 @@ import Ledger.TimeSlot qualified as TimeSlot
 import Ledger.Tx qualified as Tx
 import Ledger.Tx.CardanoAPISpec qualified
 import Ledger.Value qualified as Value
+import PlutusTx.AssocMap qualified as AMap
 import PlutusTx.Prelude qualified as PlutusTx
 import Test.Tasty (TestTree, defaultMain, testGroup)
 import Test.Tasty.HUnit (testCase)
@@ -82,9 +82,9 @@ tests = testGroup "all tests" [
     testGroup "Tx" [
         testProperty "TxOut fromTxOut/toTxOut" ciTxOutRoundTrip
         ],
-    testGroup "Fee" [
-        testProperty "calcFees" calcFeesTest
-        ],
+    testGroup "TxInfo" [
+        testProperty "TxInfo has non empty ada txMint and txFee" txInfoNonEmptyAda
+    ],
     testGroup "TimeSlot" [
         testProperty "time range of starting slot" initialSlotToTimeProp,
         testProperty "slot of starting time range" initialTimeToSlotProp,
@@ -233,11 +233,6 @@ ciTxOutRoundTrip = property $ do
   forM_ txOuts $ \txOut -> do
     Hedgehog.assert $ Tx.toTxOut (fromJust $ Tx.fromTxOut txOut) == txOut
 
-calcFeesTest :: Property
-calcFeesTest = property $ do
-    let feeCfg = FeeConfig 10 0.3
-    Hedgehog.assert $ calcFees feeCfg 11 == Ada.lovelaceOf 13
-
 -- | Asserting that time range of 'scSlotZeroTime' to 'scSlotZeroTime + scSlotLength'
 -- is 'Slot 0' and the time after that is 'Slot 1'.
 initialSlotToTimeProp :: Property
@@ -329,3 +324,13 @@ signAndVerifyTest = property $ do
     pubKey = Ledger.toPublicKey privKey
   payload <- forAll $ Gen.bytes $ Range.singleton 128
   Hedgehog.assert $ (\x -> Ledger.signedBy x pubKey payload) $ Ledger.sign payload privKey pass
+
+-- | Check that `txInfoMint` and `txInfoFee` contain ada symbol.
+--
+-- See note [Mint and Fee fields must have ada symbol].
+txInfoNonEmptyAda :: Property
+txInfoNonEmptyAda = property $ do
+    mockChain <- forAll Gen.genMockchain
+    txInfo <- forAll $ Gen.genTxInfo mockChain
+    Hedgehog.assert $ (AMap.member Ada.adaSymbol . Value.getValue) $ Ledger.txInfoMint txInfo
+    Hedgehog.assert $ (AMap.member Ada.adaSymbol . Value.getValue) $ Ledger.txInfoFee txInfo

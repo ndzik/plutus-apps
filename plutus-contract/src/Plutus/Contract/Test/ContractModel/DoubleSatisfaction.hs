@@ -44,7 +44,7 @@ import Data.Either
 import Data.Map qualified as Map
 import Data.Maybe
 import Data.Set qualified as Set
-import Ledger.Params (Params)
+import Ledger.Params (EmulatorEra, Params)
 
 import Ledger (unPaymentPrivateKey, unPaymentPubKeyHash)
 import Ledger.Crypto
@@ -57,7 +57,8 @@ import Ledger.Validation qualified as Validation
 import Ledger.Value (adaOnlyValue)
 import Plutus.Contract.Test hiding (not)
 import Plutus.Contract.Test.ContractModel.Internal
-import Plutus.Script.Utils.V1.Scripts (datumHash, validatorHash)
+import Plutus.Script.Utils.Scripts (datumHash)
+import Plutus.Script.Utils.V1.Scripts (validatorHash)
 import Plutus.Trace.Emulator as Trace (EmulatorTrace, activateContract, callEndpoint, runEmulatorStream)
 import Plutus.V1.Ledger.Address
 import Plutus.V1.Ledger.TxId

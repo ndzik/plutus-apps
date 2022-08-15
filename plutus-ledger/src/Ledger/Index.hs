@@ -29,12 +29,12 @@ module Ledger.Index(
     ValidationError(..),
     ValidationErrorInPhase,
     ValidationPhase(..),
-    EmulatorEra,
     InOutMatch(..),
     minFee,
     maxFee,
     minAdaTxOut,
     minLovelaceTxOut,
+    maxMinAdaTxOut,
     mkTxInfo,
     -- * Actual validation
     validateTransaction,
@@ -76,7 +76,8 @@ import Ledger.Params (Params (pSlotConfig))
 import Ledger.TimeSlot qualified as TimeSlot
 import Ledger.Tx (CardanoTx (..), txId, updateUtxoCollateral)
 import Ledger.Validation (evaluateMinLovelaceOutput, fromPlutusTxOutUnsafe)
-import Plutus.Script.Utils.V1.Scripts
+import Plutus.Script.Utils.Scripts (datumHash)
+import Plutus.Script.Utils.V1.Scripts (mintingPolicyHash, validatorHash)
 import Plutus.V1.Ledger.Ada (Ada)
 import Plutus.V1.Ledger.Ada qualified as Ada
 import Plutus.V1.Ledger.Address (Address (Address, addressCredential))
@@ -220,7 +221,8 @@ the blockchain.
 checkMintingAuthorised :: ValidationMonad m => Tx -> m ()
 checkMintingAuthorised tx =
     let
-        mintedCurrencies = V.symbols (txMint tx)
+        -- See note [Mint and Fee fields must have ada symbol].
+        mintedCurrencies = filter ((/=) Ada.adaSymbol) $ V.symbols (txMint tx)
 
         mpsScriptHashes = Scripts.MintingPolicyHash . V.unCurrencySymbol <$> mintedCurrencies
 
@@ -323,7 +325,7 @@ checkPositiveValues t =
     else throwError $ NegativeValue t
 
 {-# INLINABLE minAdaTxOut #-}
--- Minimum required Ada for each tx output.
+-- An estimate of the minimum required Ada for each tx output.
 --
 -- TODO: Should be removed.
 minAdaTxOut :: Ada
@@ -332,6 +334,21 @@ minAdaTxOut = Ada.lovelaceOf minTxOut
 {-# INLINABLE minTxOut #-}
 minTxOut :: Integer
 minTxOut = 2_000_000
+
+{-# INLINABLE maxMinAdaTxOut #-}
+{-
+maxMinAdaTxOut = maxTxOutSize * coinsPerUTxOWord
+coinsPerUTxOWord = 34_482
+maxTxOutSize = utxoEntrySizeWithoutVal + maxValSizeInWords + dataHashSize
+utxoEntrySizeWithoutVal = 27
+maxValSizeInWords = 500
+dataHashSize = 10
+
+These values are partly protocol parameters-based, but since this is used in on-chain code
+we want a constant to reduce code size.
+-}
+maxMinAdaTxOut :: Ada
+maxMinAdaTxOut = Ada.lovelaceOf 18_516_834
 
 -- Minimum required Lovelace for each tx output.
 --
@@ -382,8 +399,9 @@ mkTxInfo tx = do
     let ptx = TxInfo
             { txInfoInputs = txins
             , txInfoOutputs = txOutputs tx
-            , txInfoMint = txMint tx
-            , txInfoFee = txFee tx
+            -- See note [Mint and Fee fields must have ada symbol]
+            , txInfoMint = Ada.lovelaceValueOf 0 <> txMint tx
+            , txInfoFee = Ada.lovelaceValueOf 0 <> txFee tx
             , txInfoDCert = [] -- DCerts not supported in emulator
             , txInfoWdrl = [] -- Withdrawals not supported in emulator
             , txInfoValidRange = TimeSlot.slotRangeToPOSIXTimeRange slotCfg $ txValidRange tx

@@ -49,7 +49,7 @@ data BadRemoveParams = BadRemoveParams
 badRemove :: forall w s. Uniswap -> BadRemoveParams -> Contract w s Text ()
 badRemove us BadRemoveParams{..} = do
     (_, (oref, o, lp, liquidity)) <- findUniswapFactoryAndPool us brpCoinA brpCoinB
-    pkh                           <- Contract.ownPaymentPubKeyHash
+    pkh                           <- Contract.ownFirstPaymentPubKeyHash
     --when (brpDiff < 1 || brpDiff >= liquidity) $ throwError "removed liquidity must be positive and less than total liquidity"
     let usInst       = uniswapInstance us
         usScript     = uniswapScript us
@@ -67,9 +67,9 @@ badRemove us BadRemoveParams{..} = do
         val          = psVal <> valueOf brpCoinA brpOutA <> valueOf brpCoinB brpOutB
         redeemer     = Redeemer $ PlutusTx.toBuiltinData Remove
 
-        lookups  = Constraints.typedValidatorLookups usInst          <>
-                   Constraints.otherScript usScript                  <>
-                   Constraints.mintingPolicy (liquidityPolicy us)   <>
+        lookups  = Constraints.plutusV1TypedValidatorLookups usInst          <>
+                   Constraints.plutusV1OtherScript usScript                  <>
+                   Constraints.plutusV1MintingPolicy (liquidityPolicy us)   <>
                    Constraints.unspentOutputs (Map.singleton oref o) <>
                    Constraints.ownPaymentPubKeyHash pkh
 

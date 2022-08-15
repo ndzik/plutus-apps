@@ -97,7 +97,7 @@ mustPayToPubKeyAddressStakePubKeyNotNothingProp = property $ do
     where
         stakePaymentPubKeyHash :: C.TxOut C.CtxTx C.AlonzoEra -> Maybe StakePubKeyHash
         stakePaymentPubKeyHash (C.TxOut addr _ _) = do
-            txOutAddress <- either (const Nothing) Just $ C.fromCardanoAddress addr
+            txOutAddress <- either (const Nothing) Just $ C.fromCardanoAddressInEra addr
             stakeCred <- addressStakingCredential txOutAddress
             case stakeCred of
                 StakingHash (PubKeyCredential pkh) -> Just $ StakePubKeyHash pkh
@@ -155,8 +155,8 @@ mustPayToPubKeyAddressStakePubKeyNotNothingProp = property $ do
 -- lookups1 :: ScriptLookups UnitTest
 -- lookups1
 --     = Constraints.unspentOutputs utxo1
---     <> Constraints.otherScript (Scripts.validatorScript alwaysSucceedValidator)
---     <> Constraints.otherScript (Scripts.validatorScript validator1)
+--     <> Constraints.plutusV1OtherScript (Scripts.validatorScript alwaysSucceedValidator)
+--     <> Constraints.plutusV1OtherScript (Scripts.validatorScript validator1)
 
 -- testMustSpendScriptOutputWithMatchingDatumAndValue :: Property
 -- testMustSpendScriptOutputWithMatchingDatumAndValue = testScriptInputs lookups1 (constraints1 alwaysSucceedValidatorHash)

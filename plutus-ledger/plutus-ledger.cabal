@@ -34,7 +34,7 @@ common lang
     ScopedTypeVariables
     StandaloneDeriving
 
-  -- See Plutus Tx readme for why we need the following flags: 
+  -- See Plutus Tx readme for why we need the following flags:
   -- -fobject-code -fno-ignore-interface-pragmas and -fno-omit-interface-pragmas
   ghc-options:
     -Wall -Wnoncanonical-monad-instances -Wunused-packages
@@ -67,6 +67,7 @@ library
     Ledger.Index.Internal
     Ledger.Orphans
     Ledger.Params
+    Ledger.Test
     Ledger.TimeSlot
     Ledger.Tokens
     Ledger.Tx
@@ -95,11 +96,18 @@ library
   -- the Haskell modules and not in the current cabal file.
   -- For example: Plutus.V1.Ledger.Address is reexported by Ledger.Address
   other-modules:      Ledger.Tx.CardanoAPITemp
+
+  --------------------
+  -- Local components
+  --------------------
   build-depends:
-    , aeson
-    , array
-    , base                            >=4.9  && <5
-    , bytestring
+    , freer-extras
+    , plutus-script-utils
+
+  --------------------------
+  -- Other IOG dependencies
+  --------------------------
+  build-depends:
     , cardano-api:{cardano-api, gen}
     , cardano-crypto
     , cardano-crypto-class
@@ -109,25 +117,33 @@ library
     , cardano-ledger-shelley
     , cardano-ledger-shelley-ma
     , cardano-slotting
+    , iohk-monitoring
+    , ouroboros-consensus
+    , ouroboros-consensus-shelley
+    , plutus-core
+    , plutus-ledger-api
+    , plutus-tx
+
+  ------------------------
+  -- Non-IOG dependencies
+  ------------------------
+  build-depends:
+    , aeson
+    , array
+    , base               >=4.9  && <5
+    , bytestring
     , cborg
     , containers
-    , cryptonite                      >=0.25
+    , cryptonite         >=0.25
     , data-default
     , deepseq
-    , freer-extras
     , hashable
     , hedgehog
     , http-api-data
-    , iohk-monitoring
     , lens
     , memory
     , mtl
     , openapi3
-    , ouroboros-consensus-shelley
-    , plutus-core
-    , plutus-ledger-api
-    , plutus-script-utils
-    , plutus-tx
     , prettyprinter
     , scientific
     , serialise
@@ -141,6 +157,9 @@ library
 
   ghc-options:        -fprint-potential-instances
 
+  if !(impl(ghcjs) || os(ghcjs))
+    build-depends: plutus-tx-plugin
+
   if flag(defer-plugin-errors)
     ghc-options: -fplugin-opt PlutusTx.Plugin:defer-errors
 
@@ -152,15 +171,32 @@ test-suite plutus-ledger-test
   default-language:   Haskell2010
   default-extensions: ImportQualifiedPost
   other-modules:      Ledger.Tx.CardanoAPISpec
+
+  --------------------
+  -- Local components
+  --------------------
+  build-depends:
+    , plutus-ledger
+    , plutus-script-utils
+
+  --------------------------
+  -- Other IOG dependencies
+  --------------------------
+  build-depends:
+    , cardano-api:{cardano-api, gen}
+    , plutus-ledger-api
+    , plutus-tx
+
+  ------------------------
+  -- Non-IOG dependencies
+  ------------------------
   build-depends:
     , aeson
-    , base                            >=4.9 && <5
+    , base            >=4.9 && <5
     , bytestring
-    , cardano-api:{cardano-api, gen}
     , containers
+    , data-default
     , hedgehog
-    , plutus-ledger
-    , plutus-tx
     , tasty
     , tasty-hedgehog
     , tasty-hunit

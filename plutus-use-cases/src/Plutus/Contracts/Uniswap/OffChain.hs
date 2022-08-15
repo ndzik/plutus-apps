@@ -196,7 +196,7 @@ data AddParams = AddParams
 -- for any pair of tokens at any given time.
 start :: forall w s. Contract w s Text Uniswap
 start = do
-    pkh <- Contract.ownPaymentPubKeyHash
+    pkh <- Contract.ownFirstPaymentPubKeyHash
     cs  <- fmap Currency.currencySymbol $
            mapError (pack . show @Currency.CurrencyError) $
            Currency.mintContract pkh [(uniswapTokenName, 1)]
@@ -205,7 +205,7 @@ start = do
         inst = uniswapInstance us
         tx   = mustPayToTheScript (Factory []) $ unitValue c
 
-    mkTxConstraints (Constraints.typedValidatorLookups inst) tx
+    mkTxConstraints (Constraints.plutusV1TypedValidatorLookups inst) tx
       >>= adjustUnbalancedTx >>= submitTxConfirmed
     void $ waitNSlots 1
 
@@ -229,9 +229,9 @@ create us CreateParams{..} = do
         usVal    = unitValue $ usCoin us
         lpVal    = valueOf cpCoinA cpAmountA <> valueOf cpCoinB cpAmountB <> unitValue psC
 
-        lookups  = Constraints.typedValidatorLookups usInst        <>
-                   Constraints.otherScript usScript                <>
-                   Constraints.mintingPolicy (liquidityPolicy us) <>
+        lookups  = Constraints.plutusV1TypedValidatorLookups usInst        <>
+                   Constraints.plutusV1OtherScript usScript                <>
+                   Constraints.plutusV1MintingPolicy (liquidityPolicy us) <>
                    Constraints.unspentOutputs (Map.singleton oref o)
 
         tx       = Constraints.mustPayToTheScript usDat1 usVal                                     <>
@@ -247,7 +247,7 @@ create us CreateParams{..} = do
 close :: forall w s. Uniswap -> CloseParams -> Contract w s Text ()
 close us CloseParams{..} = do
     ((oref1, o1, lps), (oref2, o2, lp, liquidity)) <- findUniswapFactoryAndPool us clpCoinA clpCoinB
-    pkh                                            <- Contract.ownPaymentPubKeyHash
+    pkh                                            <- Contract.ownFirstPaymentPubKeyHash
     let usInst   = uniswapInstance us
         usScript = uniswapScript us
         usDat    = Factory $ filter (/= lp) lps
@@ -259,9 +259,9 @@ close us CloseParams{..} = do
         lVal     = valueOf lC liquidity
         redeemer = Redeemer $ PlutusTx.toBuiltinData Close
 
-        lookups  = Constraints.typedValidatorLookups usInst        <>
-                   Constraints.otherScript usScript                <>
-                   Constraints.mintingPolicy (liquidityPolicy us) <>
+        lookups  = Constraints.plutusV1TypedValidatorLookups usInst        <>
+                   Constraints.plutusV1OtherScript usScript                <>
+                   Constraints.plutusV1MintingPolicy (liquidityPolicy us) <>
                    Constraints.ownPaymentPubKeyHash pkh                   <>
                    Constraints.unspentOutputs (Map.singleton oref1 o1 <> Map.singleton oref2 o2)
 
@@ -279,7 +279,7 @@ close us CloseParams{..} = do
 remove :: forall w s. Uniswap -> RemoveParams -> Contract w s Text ()
 remove us RemoveParams{..} = do
     (_, (oref, o, lp, liquidity)) <- findUniswapFactoryAndPool us rpCoinA rpCoinB
-    pkh                           <- Contract.ownPaymentPubKeyHash
+    pkh                           <- Contract.ownFirstPaymentPubKeyHash
     when (rpDiff < 1 || rpDiff >= liquidity) $ throwError "removed liquidity must be positive and less than total liquidity"
     let usInst       = uniswapInstance us
         usScript     = uniswapScript us
@@ -295,9 +295,9 @@ remove us RemoveParams{..} = do
         val          = psVal <> valueOf rpCoinA outA <> valueOf rpCoinB outB
         redeemer     = Redeemer $ PlutusTx.toBuiltinData Remove
 
-        lookups  = Constraints.typedValidatorLookups usInst          <>
-                   Constraints.otherScript usScript                  <>
-                   Constraints.mintingPolicy (liquidityPolicy us)   <>
+        lookups  = Constraints.plutusV1TypedValidatorLookups usInst          <>
+                   Constraints.plutusV1OtherScript usScript                  <>
+                   Constraints.plutusV1MintingPolicy (liquidityPolicy us)   <>
                    Constraints.unspentOutputs (Map.singleton oref o) <>
                    Constraints.ownPaymentPubKeyHash pkh
 
@@ -312,7 +312,7 @@ remove us RemoveParams{..} = do
 -- | Adds some liquidity to an existing liquidity pool in exchange for newly minted liquidity tokens.
 add :: forall w s. Uniswap -> AddParams -> Contract w s Text ()
 add us AddParams{..} = do
-    pkh                           <- Contract.ownPaymentPubKeyHash
+    pkh                           <- Contract.ownFirstPaymentPubKeyHash
     (_, (oref, o, lp, liquidity)) <- findUniswapFactoryAndPool us apCoinA apCoinB
     when (apAmountA < 0 || apAmountB < 0) $ throwError "amounts must not be negative"
     let outVal = view ciTxOutValue o
@@ -335,9 +335,9 @@ add us AddParams{..} = do
         val          = psVal <> valueOf apCoinA newA <> valueOf apCoinB newB
         redeemer     = Redeemer $ PlutusTx.toBuiltinData Add
 
-        lookups  = Constraints.typedValidatorLookups usInst             <>
-                   Constraints.otherScript usScript                     <>
-                   Constraints.mintingPolicy (liquidityPolicy us)       <>
+        lookups  = Constraints.plutusV1TypedValidatorLookups usInst             <>
+                   Constraints.plutusV1OtherScript usScript                     <>
+                   Constraints.plutusV1MintingPolicy (liquidityPolicy us)       <>
                    Constraints.ownPaymentPubKeyHash pkh                        <>
                    Constraints.unspentOutputs (Map.singleton oref o)
 
@@ -369,15 +369,15 @@ swap us SwapParams{..} = do
         let outA = Amount $ findSwapB oldA oldB spAmountB
         when (outA == 0) $ throwError "no payout"
         return (oldA - outA, oldB + spAmountB)
-    pkh <- Contract.ownPaymentPubKeyHash
+    pkh <- Contract.ownFirstPaymentPubKeyHash
 
     logInfo @String $ printf "oldA = %d, oldB = %d, old product = %d, newA = %d, newB = %d, new product = %d" oldA oldB (unAmount oldA * unAmount oldB) newA newB (unAmount newA * unAmount newB)
 
     let inst    = uniswapInstance us
         val     = valueOf spCoinA newA <> valueOf spCoinB newB <> unitValue (poolStateCoin us)
 
-        lookups = Constraints.typedValidatorLookups inst                 <>
-                  Constraints.otherScript (Scripts.validatorScript inst) <>
+        lookups = Constraints.plutusV1TypedValidatorLookups inst                 <>
+                  Constraints.plutusV1OtherScript (Scripts.validatorScript inst) <>
                   Constraints.unspentOutputs (Map.singleton oref o)      <>
                   Constraints.ownPaymentPubKeyHash pkh
 
@@ -421,7 +421,7 @@ pools us = do
 -- | Gets the caller's funds.
 funds :: forall w s. Contract w s Text Value
 funds = do
-    pkh <- Contract.ownPaymentPubKeyHash
+    pkh <- Contract.ownFirstPaymentPubKeyHash
     os  <- map snd . Map.toList <$> utxosAt (pubKeyHashAddress pkh Nothing)
     return $ mconcat [view ciTxOutValue o | o <- os]
 
@@ -430,8 +430,8 @@ getUniswapDatum o =
   case o of
       PublicKeyChainIndexTxOut {} ->
         throwError "no datum for a txout of a public key address"
-      ScriptChainIndexTxOut { _ciTxOutDatum } -> do
-        (Datum e) <- either getDatum pure _ciTxOutDatum
+      ScriptChainIndexTxOut { _ciTxOutScriptDatum = (dh, d) } -> do
+        (Datum e) <- maybe (getDatum dh) pure d
         maybe (throwError "datum hash wrong type")
               pure
               (PlutusTx.fromBuiltinData e)

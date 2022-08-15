@@ -27,8 +27,9 @@ module Plutus.Contract.Trace
     , handleAdjustUnbalancedTx
     , handleSlotNotifications
     , handleTimeNotifications
-    , handleOwnPaymentPubKeyHashQueries
-    , handleCurrentSlotQueries
+    , handleOwnAddressesQueries
+    , handleCurrentPABSlotQueries
+    , handleCurrentChainIndexSlotQueries
     , handleCurrentTimeQueries
     , handleTimeToSlotConversions
     , handleUnbalancedTransactions
@@ -116,13 +117,21 @@ handleTimeNotifications ::
 handleTimeNotifications =
     generalise (preview E._AwaitTimeReq) E.AwaitTimeResp RequestHandler.handleTimeNotifications
 
-handleCurrentSlotQueries ::
+handleCurrentPABSlotQueries ::
     ( Member (LogObserve (LogMessage Text)) effs
     , Member NodeClientEffect effs
     )
     => RequestHandler effs PABReq PABResp
-handleCurrentSlotQueries =
-    generalise (preview E._CurrentSlotReq) E.CurrentSlotResp RequestHandler.handleCurrentSlot
+handleCurrentPABSlotQueries =
+    generalise (preview E._CurrentPABSlotReq) E.CurrentPABSlotResp RequestHandler.handleCurrentPABSlot
+
+handleCurrentChainIndexSlotQueries ::
+    ( Member (LogObserve (LogMessage Text)) effs
+    , Member ChainIndexQueryEffect effs
+    )
+    => RequestHandler effs PABReq PABResp
+handleCurrentChainIndexSlotQueries =
+    generalise (preview E._CurrentChainIndexSlotReq) E.CurrentChainIndexSlotResp RequestHandler.handleCurrentChainIndexSlot
 
 handleCurrentTimeQueries ::
     ( Member (LogObserve (LogMessage Text)) effs
@@ -175,13 +184,13 @@ handleChainIndexQueries =
                E.ChainIndexQueryResp
                RequestHandler.handleChainIndexQueries
 
-handleOwnPaymentPubKeyHashQueries ::
+handleOwnAddressesQueries ::
     ( Member (LogObserve (LogMessage Text)) effs
     , Member WalletEffect effs
     )
     => RequestHandler effs PABReq PABResp
-handleOwnPaymentPubKeyHashQueries =
-    generalise (preview E._OwnPaymentPublicKeyHashReq) E.OwnPaymentPublicKeyHashResp RequestHandler.handleOwnPaymentPubKeyHash
+handleOwnAddressesQueries =
+    generalise (preview E._OwnAddressesReq) E.OwnAddressesResp RequestHandler.handleOwnAddresses
 
 handleOwnInstanceIdQueries ::
     ( Member (LogObserve (LogMessage Text)) effs

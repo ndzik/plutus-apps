@@ -31,10 +31,9 @@ import Ledger.Scripts (ScriptError)
 import Ledger.Slot (Slot)
 import Ledger.TimeSlot (SlotConfig, SlotConversionError)
 import Ledger.Tx.CardanoAPI (FromCardanoError, ToCardanoError)
-import Ledger.Typed.Tx (ConnectionError, WrongOutTypeError)
 import Ledger.Value (AssetClass, CurrencySymbol, TokenName, Value)
 import Playground.Types (ContractCall, FunctionSchema, KnownCurrency)
-import Plutus.ChainIndex.Api (IsUtxoResponse, TxosResponse, UtxosResponse)
+import Plutus.ChainIndex.Api (IsUtxoResponse, QueryResponse, TxosResponse, UtxosResponse)
 import Plutus.ChainIndex.ChainIndexError (ChainIndexError)
 import Plutus.ChainIndex.ChainIndexLog (ChainIndexLog)
 import Plutus.ChainIndex.Tx (ChainIndexTx, ChainIndexTxOutputs)
@@ -45,6 +44,7 @@ import Plutus.Contract.Effects (ActiveEndpoint, BalanceTxResponse, ChainIndexQue
                                 WriteBalancedTxResponse)
 import Plutus.Contract.Error (AssertionError, ContractError, MatchingError)
 import Plutus.Contract.Resumable (IterationID, Request, RequestID, Response)
+import Plutus.Script.Utils.V1.Typed.Scripts (ConnectionError, WrongOutTypeError)
 import Plutus.Trace.Emulator.Types (ContractInstanceLog, ContractInstanceMsg, ContractInstanceTag, EmulatorRuntimeError,
                                     UserThreadMsg)
 import Plutus.Trace.Scheduler (Priority, SchedulerLog, StopReason, ThreadEvent, ThreadId)
@@ -391,6 +391,7 @@ ledgerTypes =
     , equal . genericShow . argonaut $ mkSumType @ChainIndexQuery
     , equal . genericShow . argonaut $ mkSumType @ChainIndexResponse
     , equal . genericShow . argonaut $ mkSumType @IsUtxoResponse
+    , equal . genericShow . argonaut $ mkSumType @(QueryResponse A)
     , equal . genericShow . argonaut $ mkSumType @TxosResponse
     , equal . genericShow . argonaut $ mkSumType @UtxosResponse
     , equal . genericShow . argonaut $ mkSumType @ChainIndexTx
