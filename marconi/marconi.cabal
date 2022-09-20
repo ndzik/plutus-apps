@@ -50,6 +50,7 @@ library
     Marconi.Indexers
     Marconi.Logging
     Marconi.Orphans
+    Marconi.Streaming.ChainSync
     Marconi.Types
 
   --------------------
@@ -83,12 +84,15 @@ library
     , mwc-random
     , optparse-applicative
     , prettyprinter
+    , primitive
     , serialise
     , sqlite-simple
     , stm
     , streaming
     , text
     , time
+    , transformers
+    , vector
 
 executable marconi
   import:         lang

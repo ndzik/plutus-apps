@@ -35,7 +35,6 @@ import Cardano.Ledger.ShelleyMA.Timelocks qualified as Timelock
 import RewindableIndex.Index.VSqlite (SqliteIndex)
 import RewindableIndex.Index.VSqlite qualified as Ix
 
-
 newtype Depth = Depth Int
 
 newtype ScriptAddress = ScriptAddress Shelley.ScriptHash
