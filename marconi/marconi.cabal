@@ -46,6 +46,7 @@ library
     Marconi.CLI
     Marconi.Index.Datum
     Marconi.Index.ScriptTx
+    Marconi.Index.StakePoolDelegation
     Marconi.Index.Utxo
     Marconi.Indexers
     Marconi.Logging
@@ -70,8 +71,16 @@ library
     , cardano-ledger-core
     , cardano-ledger-shelley
     , cardano-ledger-shelley-ma
+    , cardano-prelude
+    , cardano-slotting
     , iohk-monitoring
+    , ouroboros-consensus
+    , ouroboros-consensus-byron
+    , ouroboros-consensus-cardano
+    , ouroboros-consensus-shelley
+    , ouroboros-network
     , plutus-ledger-api
+    , vector-map
 
   ------------------------
   -- Non-IOG dependencies
