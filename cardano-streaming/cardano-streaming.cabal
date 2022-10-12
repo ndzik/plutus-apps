@@ -43,8 +43,9 @@ library
   ------------------------
   build-depends:
     , async
-    , base       >=4.9 && <5
+    , base          >=4.9 && <5
     , streaming
+    , transformers
 
 executable cardano-streaming-example-1
   import:         lang

@@ -2,6 +2,7 @@ module Cardano.Streaming
   ( withChainSyncEventStream,
     ChainSyncEvent (..),
     ChainSyncEventException (..),
+    ledgerStates
   )
 where
 
@@ -14,9 +15,15 @@ import Cardano.Api (BlockInMode, CardanoMode, ChainPoint, ChainSyncClient (Chain
 import Cardano.Api.ChainSync.Client (ClientStIdle (SendMsgFindIntersect, SendMsgRequestNext),
                                      ClientStIntersect (ClientStIntersect, recvMsgIntersectFound, recvMsgIntersectNotFound),
                                      ClientStNext (ClientStNext, recvMsgRollBackward, recvMsgRollForward))
+import Cardano.Api.Shelley qualified as C
+import Control.Concurrent qualified as IO
 import Control.Concurrent.Async (ExceptionInLinkedThread (ExceptionInLinkedThread), link, withAsync)
+import Control.Concurrent.Chan qualified as IO
 import Control.Concurrent.MVar (MVar, newEmptyMVar, putMVar, takeMVar)
 import Control.Exception (Exception, SomeException (SomeException), catch, throw)
+import Control.Monad (void)
+import Control.Monad.Trans.Class (lift)
+import Control.Monad.Trans.Except (runExceptT)
 import GHC.Generics (Generic)
 import Streaming (Of, Stream)
 import Streaming.Prelude qualified as S
@@ -133,3 +140,12 @@ chainSyncStreamingClient point nextChainEventVar =
                   sendRequestNext
             }
 
+
+-- | Create stream of ledger states from a node configured with
+-- @nodeConfig@ and events streamed from @socket@.
+ledgerStates :: FilePath -> FilePath -> S.Stream (S.Of C.LedgerState) IO a
+ledgerStates nodeConfig socket = do
+  chan <- lift IO.newChan
+  lift $ void $ IO.forkIO $ either (print . C.renderFoldBlocksError) print =<< runExceptT (C.foldBlocks nodeConfig socket C.QuickValidation () $
+    \_env ledgerState _ledgerEvents _blockInCardanoMode _ -> IO.writeChan chan ledgerState)
+  S.repeatM $ IO.readChan chan
