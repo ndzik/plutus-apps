@@ -6,7 +6,7 @@
 }:
 let
   inherit (pkgs.stdenv) isDarwin;
-  testing = import (pkgs.path + "/nixos/lib/testing-python.nix") { system = builtins.currentSystem; };
+  testing = import (pkgs.path + "/nixos/lib/testing-python.nix") { inherit (pkgs) system; };
   makeTest = testing.makeTest;
   tests = pkgs.recurseIntoAttrs {
     plutus-playground-server = pkgs.callPackage ./vm-tests/plutus-playground.nix { inherit makeTest plutus-playground; };
