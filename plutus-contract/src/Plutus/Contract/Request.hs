@@ -22,11 +22,13 @@ module Plutus.Contract.Request(
     , isSlot
     , currentSlot
     , currentPABSlot
+    , currentNodeClientSlot
     , currentChainIndexSlot
     , waitNSlots
     , awaitTime
     , isTime
     , currentTime
+    , currentNodeClientTimeRange
     , waitNMilliSeconds
     -- ** Chain index queries
     , datumFromHash
@@ -138,7 +140,7 @@ import Plutus.V1.Ledger.Api (Address, Datum, DatumHash, MintingPolicy, MintingPo
 import PlutusTx qualified
 
 import Plutus.Contract.Effects (ActiveEndpoint (ActiveEndpoint, aeDescription, aeMetadata),
-                                PABReq (AdjustUnbalancedTxReq, AwaitSlotReq, AwaitTimeReq, AwaitTxOutStatusChangeReq, AwaitTxStatusChangeReq, AwaitUtxoProducedReq, AwaitUtxoSpentReq, BalanceTxReq, ChainIndexQueryReq, CurrentChainIndexSlotReq, CurrentPABSlotReq, CurrentTimeReq, ExposeEndpointReq, OwnAddressesReq, OwnContractInstanceIdReq, WriteBalancedTxReq, YieldUnbalancedTxReq),
+                                PABReq (AdjustUnbalancedTxReq, AwaitSlotReq, AwaitTimeReq, AwaitTxOutStatusChangeReq, AwaitTxStatusChangeReq, AwaitUtxoProducedReq, AwaitUtxoSpentReq, BalanceTxReq, ChainIndexQueryReq, CurrentChainIndexSlotReq, CurrentNodeClientSlotReq, CurrentNodeClientTimeRangeReq, CurrentTimeReq, ExposeEndpointReq, OwnAddressesReq, OwnContractInstanceIdReq, WriteBalancedTxReq, YieldUnbalancedTxReq),
                                 PABResp (ExposeEndpointResp))
 import Plutus.Contract.Effects qualified as E
 import Plutus.Contract.Logging (logDebug)
@@ -214,7 +216,7 @@ isSlot ::
 isSlot = Promise . awaitSlot
 
 -- | Get the current slot number
-{-# DEPRECATED currentSlot "It was renamed to 'currentPABSlot', this function will be removed" #-}
+{-# DEPRECATED currentSlot "Use currentNodeClientSlot instead" #-}
 currentSlot ::
     forall w s e.
     ( AsContractError e
@@ -222,13 +224,23 @@ currentSlot ::
     => Contract w s e Slot
 currentSlot = currentPABSlot
 
+{-# DEPRECATED currentPABSlot "Use currentNodeClientSlot instead" #-}
 -- | Get the current slot number of PAB
 currentPABSlot ::
     forall w s e.
     ( AsContractError e
     )
     => Contract w s e Slot
-currentPABSlot = pabReq CurrentPABSlotReq E._CurrentPABSlotResp
+currentPABSlot = pabReq CurrentNodeClientSlotReq E._CurrentNodeClientSlotResp
+
+-- | Get the current slot number of the node client (the local or remote node) that the application
+-- is connected to.
+currentNodeClientSlot ::
+    forall w s e.
+    ( AsContractError e
+    )
+    => Contract w s e Slot
+currentNodeClientSlot = pabReq CurrentNodeClientSlotReq E._CurrentNodeClientSlotResp
 
 -- | Get the current node slot number querying slot number from plutus chain index to be aligned with slot at local running node
 currentChainIndexSlot ::
@@ -272,6 +284,7 @@ isTime ::
     -> Promise w s e POSIXTime
 isTime = Promise . awaitTime
 
+{-# DEPRECATED currentTime "Use currentNodeClientTimeRange instead" #-}
 -- | Get the latest time of the current slot.
 --
 -- Example: if slot length is 3s and current slot is 2, then `currentTime`
@@ -282,6 +295,17 @@ currentTime ::
     )
     => Contract w s e POSIXTime
 currentTime = pabReq CurrentTimeReq E._CurrentTimeResp
+
+-- | Get the 'POSIXTime' range of the current slot.
+--
+-- Example: if slot length is 3s and current slot is 2, then `currentTimeRange`
+-- returns the time interval @[3, 5[@.
+currentNodeClientTimeRange ::
+    forall w s e.
+    ( AsContractError e
+    )
+    => Contract w s e (POSIXTime, POSIXTime)
+currentNodeClientTimeRange = pabReq CurrentNodeClientTimeRangeReq E._CurrentNodeClientTimeRangeResp
 
 -- | Wait for a number of milliseconds starting at the ending time of the current
 -- slot, and return the latest time we know has passed.
@@ -922,11 +946,13 @@ mkTxContract ::
     -> Contract w s Constraints.MkTxError UnbalancedTx
 mkTxContract lookups txc = do
     let result = Constraints.mkTx lookups txc
-        logData = MkTxLog{mkTxLogLookups=Constraints.generalise lookups, mkTxLogTxConstraints=bimap PlutusTx.toBuiltinData PlutusTx.toBuiltinData txc, mkTxLogResult = result}
+        logData = MkTxLog
+          { mkTxLogLookups = Constraints.generalise lookups
+          , mkTxLogTxConstraints = bimap PlutusTx.toBuiltinData PlutusTx.toBuiltinData txc
+          , mkTxLogResult = result
+          }
     logDebug logData
-    case result of
-        Left err -> throwError err
-        Right r' -> return r'
+    either throwError pure result
 
 {-| Arguments and result of a call to 'mkTx'
 -}
