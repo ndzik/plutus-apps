@@ -158,3 +158,36 @@ sqlite db source = do
 -- | Convert stakepool's key hash to prefixed bech32 as described in CIP-5
 toPoolId :: LK.KeyHash 'LK.StakePool O.StandardCrypto -> TS.Text
 toPoolId kh = C.serialiseToBech32 (CS.StakePoolKeyHash kh)
+
+-- * Tmp
+
+hot2 = let
+  (conf, socket) = preview
+  in do
+  home <- IO.getEnv "HOME"
+  indexer (home <> "/" <> conf) (home <> "/" <> socket) "spd.db"
+
+preview, preprod, mainnet :: (FilePath, FilePath)
+preview = ( "preview/config/config.json"
+          , "preview/socket/node.socket" )
+preprod = ( "preprod/config/config.json"
+          , "preprod/socket/node.socket" )
+mainnet = ( "cardano/config/config.json"
+          , "cardano/socket/node.socket" )
+
+hot :: IO ()
+hot = do
+  home <- IO.getEnv "HOME"
+  let (conf, socket) = preview
+      indexer' =
+        CS.ledgerStates (home <> "/" <> conf) (home <> "/" <> socket)
+          & toEvents
+          & S.chain (\case
+                      (epochNo, m) -> do
+                        putStrLn $ show epochNo <> " (" <> show (M.size m) <> ")"
+                        forM_ (sortBy (flip compare `on` snd) $ M.toList m) $ \(k, v) ->
+                          putStrLn $ "   " <> TS.unpack (toPoolId k) <> ": " <> show v
+                      _ -> pure ()
+                      )
+          & S.effects
+  indexer'
