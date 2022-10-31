@@ -45,7 +45,8 @@ import Prettyprinter.Render.Text (renderStrict)
 import Test.Base qualified as H
 
 import Hedgehog.Extras qualified as H
-import Helpers (findUTxOByAddress, headM, readAs, startTestnet, submitTx, workspace)
+import Helpers (emptyTxBodyContent, findUTxOByAddress, getAlonzoProtocolParams, headM, readAs, startTestnet, submitTx,
+                workspace)
 import Marconi.Index.ScriptTx qualified as ScriptTx
 import Marconi.Indexers qualified as M
 import Marconi.Logging ()
@@ -157,10 +158,7 @@ testIndex = H.integration . HE.runFinallies . workspace "chairman" $ \tempAbsBas
     headM $ Map.toList $ C.unUTxO utxo
   let totalLovelace = C.txOutValueToLovelace v
 
-  pparams <- H.leftFailM . H.leftFailM . liftIO
-    $ C.queryNodeLocalState localNodeConnectInfo Nothing
-    $ C.QueryInEra C.AlonzoEraInCardanoMode
-    $ C.QueryInShelleyBasedEra C.ShelleyBasedEraAlonzo C.QueryProtocolParameters
+  pparams <- getAlonzoProtocolParams localNodeConnectInfo
 
   let scriptDatum = C.ScriptDataNumber 42 :: C.ScriptData
       scriptDatumHash = C.hashScriptData scriptDatum
@@ -185,25 +183,10 @@ testIndex = H.integration . HE.runFinallies . workspace "chairman" $ \tempAbsBas
           C.TxOutDatumNone
           C.ReferenceScriptNone
       txBodyContent :: C.TxBodyContent C.BuildTx C.AlonzoEra
-      txBodyContent =
-        C.TxBodyContent {
-          C.txIns              = [(tx1in, C.BuildTxWith $ C.KeyWitness C.KeyWitnessForSpending)],
-          C.txInsCollateral    = C.TxInsCollateralNone,
-          C.txInsReference     = C.TxInsReferenceNone,
-          C.txOuts             = [txOut1, txOut2],
-          C.txTotalCollateral  = C.TxTotalCollateralNone,
-          C.txReturnCollateral = C.TxReturnCollateralNone,
-          C.txFee              = C.TxFeeExplicit C.TxFeesExplicitInAlonzoEra tx1fee,
-          C.txValidityRange    = (C.TxValidityNoLowerBound, C.TxValidityNoUpperBound C.ValidityNoUpperBoundInAlonzoEra),
-          C.txMetadata         = C.TxMetadataNone,
-          C.txAuxScripts       = C.TxAuxScriptsNone,
-          C.txExtraKeyWits     = C.TxExtraKeyWitnessesNone,
-          C.txProtocolParams   = C.BuildTxWith $ Just pparams,
-          C.txWithdrawals      = C.TxWithdrawalsNone,
-          C.txCertificates     = C.TxCertificatesNone,
-          C.txUpdateProposal   = C.TxUpdateProposalNone,
-          C.txMintValue        = C.TxMintNone,
-          C.txScriptValidity   = C.TxScriptValidityNone
+      txBodyContent = (emptyTxBodyContent tx1fee pparams)
+        { C.txIns = [(tx1in, C.BuildTxWith $ C.KeyWitness C.KeyWitnessForSpending)]
+        , C.txOuts = [txOut1, txOut2]
+        , C.txProtocolParams   = C.BuildTxWith $ Just pparams
         }
   tx1body :: C.TxBody C.AlonzoEra <- H.leftFail $ C.makeTransactionBody txBodyContent
   let

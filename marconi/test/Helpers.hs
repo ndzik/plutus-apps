@@ -9,6 +9,7 @@ import Hedgehog (MonadTest, assert)
 import System.FilePath ((</>))
 
 import Cardano.Api qualified as C
+import Cardano.Api.Shelley qualified as C
 import Data.Set qualified as Set
 import GHC.Stack qualified as GHC
 import Hedgehog qualified as H
@@ -23,25 +24,86 @@ import System.Info qualified as IO
 import Testnet.Cardano qualified as TN
 import Testnet.Conf qualified as TC (Conf (..), ProjectBase (ProjectBase), YamlFilePath (YamlFilePath), mkConf)
 
--- * Helpers
+-- * Start testnet
 
 startTestnet :: FilePath -> FilePath -> H.Integration (String, C.NetworkId, FilePath)
 startTestnet base tempAbsBasePath' = do
+  (_, conf, tn) <- startTestnet_ TN.defaultTestnetOptions base tempAbsBasePath'
+  let tempAbsPath = tempAbsBasePath' <> "/"
+  socketPathAbs <- getSocketPathAbs conf tn
+  pure (socketPathAbs, getNetworkId tn, tempAbsPath)
+
+startTestnet_
+  :: TN.TestnetOptions
+  -> FilePath
+  -> FilePath
+  -> H.Integration (C.LocalNodeConnectInfo C.CardanoMode, TC.Conf, TN.TestnetRuntime)
+startTestnet_ testnetOptions base tempAbsBasePath' = do
   configurationTemplate <- H.noteShow $ base </> "configuration/defaults/byron-mainnet/configuration.yaml"
   conf@TC.Conf { TC.tempBaseAbsPath, TC.tempAbsPath } <- HE.noteShowM $
     TC.mkConf (TC.ProjectBase base) (TC.YamlFilePath configurationTemplate)
       (tempAbsBasePath' <> "/")
       Nothing
-  assert $ tempAbsPath == (tempAbsBasePath' <> "/")
-        && tempAbsPath == (tempBaseAbsPath <> "/")
-  tn <- TN.testnet TN.defaultTestnetOptions conf
-  let networkId = C.Testnet $ C.NetworkMagic $ fromIntegral (TN.testnetMagic tn)
+  tn <- TN.testnet testnetOptions conf
+
+  -- Boilerplate codecs used for protocol serialisation.  The number
+  -- of epochSlots is specific to each blockchain instance. This value
+  -- what the cardano main and testnet uses. Only applies to the Byron
+  -- era.
+  socketPathAbs <- getSocketPathAbs conf tn
+  let epochSlots = C.EpochSlots 21600
+      localNodeConnectInfo =
+        C.LocalNodeConnectInfo
+          { C.localConsensusModeParams = C.CardanoModeParams epochSlots
+          , C.localNodeNetworkId = getNetworkId tn
+          , C.localNodeSocketPath = socketPathAbs
+          }
+
+  pure (localNodeConnectInfo, conf, tn)
+
+getNetworkId :: TN.TestnetRuntime -> C.NetworkId
+getNetworkId tn = C.Testnet $ C.NetworkMagic $ fromIntegral (TN.testnetMagic tn)
+
+getSocketPathAbs :: (MonadTest m, MonadIO m) => TC.Conf -> TN.TestnetRuntime -> m FilePath
+getSocketPathAbs conf tn = do
+  let tempAbsPath = TC.tempAbsPath conf
   socketPath <- IO.sprocketArgumentName <$> headM (TN.nodeSprocket <$> TN.bftNodes tn)
   socketPathAbs <- H.note =<< (liftIO $ IO.canonicalizePath $ tempAbsPath </> socketPath)
-  pure (socketPathAbs, networkId, tempAbsPath)
+  pure socketPathAbs
+
+--
 
 readAs :: (C.HasTextEnvelope a, MonadIO m, MonadTest m) => C.AsType a -> FilePath -> m a
 readAs as path = H.leftFailM . liftIO $ C.readFileTextEnvelope as path
+
+-- * Talk to node
+
+emptyTxBodyContent :: C.Lovelace -> C.ProtocolParameters -> C.TxBodyContent C.BuildTx C.AlonzoEra
+emptyTxBodyContent fee pparams = C.TxBodyContent
+  { C.txIns              = []
+  , C.txInsCollateral    = C.TxInsCollateralNone
+  , C.txInsReference     = C.TxInsReferenceNone
+  , C.txOuts             = []
+  , C.txTotalCollateral  = C.TxTotalCollateralNone
+  , C.txReturnCollateral = C.TxReturnCollateralNone
+  , C.txFee              = C.TxFeeExplicit C.TxFeesExplicitInAlonzoEra fee
+  , C.txValidityRange    = (C.TxValidityNoLowerBound, C.TxValidityNoUpperBound C.ValidityNoUpperBoundInAlonzoEra)
+  , C.txMetadata         = C.TxMetadataNone
+  , C.txAuxScripts       = C.TxAuxScriptsNone
+  , C.txExtraKeyWits     = C.TxExtraKeyWitnessesNone
+  , C.txProtocolParams   = C.BuildTxWith $ Just pparams
+  , C.txWithdrawals      = C.TxWithdrawalsNone
+  , C.txCertificates     = C.TxCertificatesNone
+  , C.txUpdateProposal   = C.TxUpdateProposalNone
+  , C.txMintValue        = C.TxMintNone
+  , C.txScriptValidity   = C.TxScriptValidityNone
+  }
+
+getAlonzoProtocolParams :: (MonadIO m, MonadTest m) => C.LocalNodeConnectInfo C.CardanoMode -> m C.ProtocolParameters
+getAlonzoProtocolParams localNodeConnectInfo = H.leftFailM . H.leftFailM . liftIO
+  $ C.queryNodeLocalState localNodeConnectInfo Nothing
+  $ C.QueryInEra C.AlonzoEraInCardanoMode
+  $ C.QueryInShelleyBasedEra C.ShelleyBasedEraAlonzo C.QueryProtocolParameters
 
 findUTxOByAddress
   :: (MonadIO m, MonadTest m)
