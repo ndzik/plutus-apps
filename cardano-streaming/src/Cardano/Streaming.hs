@@ -2,7 +2,8 @@ module Cardano.Streaming
   ( withChainSyncEventStream,
     ChainSyncEvent (..),
     ChainSyncEventException (..),
-    ledgerStates
+    ledgerStates,
+    chainSyncEventSource
   )
 where
 
@@ -17,11 +18,11 @@ import Cardano.Api.ChainSync.Client (ClientStIdle (SendMsgFindIntersect, SendMsg
                                      ClientStNext (ClientStNext, recvMsgRollBackward, recvMsgRollForward))
 import Cardano.Api.Shelley qualified as C
 import Control.Concurrent qualified as IO
-import Control.Concurrent.Async (ExceptionInLinkedThread (ExceptionInLinkedThread), link, withAsync)
-import Control.Concurrent.Chan qualified as IO
+import Control.Concurrent.Async (ExceptionInLinkedThread (ExceptionInLinkedThread), async, link, withAsync)
 import Control.Concurrent.MVar (MVar, newEmptyMVar, putMVar, takeMVar)
 import Control.Exception (Exception, SomeException (SomeException), catch, throw)
 import Control.Monad (void)
+import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Except (runExceptT)
 import GHC.Generics (Generic)
@@ -72,7 +73,6 @@ withChainSyncEventStream socketPath networkId point consumer = do
   nextBlockVar <- newEmptyMVar
 
   let client = chainSyncStreamingClient point nextBlockVar
-
       localNodeClientProtocols =
         LocalNodeClientProtocols
           { localChainSyncClient = LocalChainSyncClient client,
@@ -80,19 +80,7 @@ withChainSyncEventStream socketPath networkId point consumer = do
             localTxMonitoringClient = Nothing,
             localTxSubmissionClient = Nothing
           }
-
-      connectInfo =
-        LocalNodeConnectInfo
-          { localConsensusModeParams = CardanoModeParams epochSlots,
-            localNodeNetworkId = networkId,
-            localNodeSocketPath = socketPath
-          }
-
-      -- This a parameter needed only for the Byron era. Since the Byron
-      -- era is over and the parameter has never changed it is ok to
-      -- hardcode this. See comment on `Cardano.Api.ConsensusModeParams` in
-      -- cardano-node.
-      epochSlots = EpochSlots 21600
+      connectInfo = mkLocalNodeConnectInfo networkId socketPath
 
   withAsync (connectToLocalNode connectInfo localNodeClientProtocols) $ \a -> do
     -- Make sure all exceptions in the client thread are passed to the consumer thread
@@ -140,6 +128,42 @@ chainSyncStreamingClient point nextChainEventVar =
                   sendRequestNext
             }
 
+mkLocalNodeConnectInfo :: NetworkId -> FilePath -> LocalNodeConnectInfo CardanoMode
+mkLocalNodeConnectInfo networkId socketPath = LocalNodeConnectInfo
+  { localConsensusModeParams = CardanoModeParams epochSlots
+  , localNodeNetworkId = networkId
+  , localNodeSocketPath = socketPath
+  }
+  -- This a parameter needed only for the Byron era. Since the Byron
+  -- era is over and the parameter has never changed it is ok to
+  -- hardcode this. See comment on `Cardano.Api.ConsensusModeParams` in
+  -- cardano-node.
+  where epochSlots = EpochSlots 21600
+
+
+-- | Create stream of @ChainSyncEvent (BlockInMode CardanoMode)@ from
+-- a node at @socketPath@ with @networkId@ at @point@.
+chainSyncEventSource
+  :: FilePath -> NetworkId -> ChainPoint
+  -> Stream (Of (ChainSyncEvent (BlockInMode CardanoMode))) IO r
+chainSyncEventSource socketPath networkId point = do
+  nextBlockVar <- liftIO $ newEmptyMVar
+  let client = chainSyncStreamingClient point nextBlockVar
+      localNodeClientProtocols =
+        LocalNodeClientProtocols
+          { localChainSyncClient = LocalChainSyncClient client
+          , localStateQueryClient = Nothing
+          , localTxMonitoringClient = Nothing
+          , localTxSubmissionClient = Nothing
+          }
+      connectInfo = mkLocalNodeConnectInfo networkId socketPath
+
+  -- TODO: confirm with others that this does indeed link exceptions
+  -- in async thread to the current one
+  void $ liftIO $ do
+    a <- async $ connectToLocalNode connectInfo localNodeClientProtocols
+    link a
+  S.repeatM $ takeMVar nextBlockVar
 
 -- | Create stream of ledger states from a node configured with
 -- @nodeConfig@ and events streamed from @socket@.
