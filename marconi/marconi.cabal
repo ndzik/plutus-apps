@@ -136,6 +136,7 @@ test-suite marconi-test
   type:           exitcode-stdio-1.0
   main-is:        Spec.hs
   hs-source-dirs: test
+  hs-source-dirs: cardano-testnet/src
   other-modules:
     Helpers
     Integration
@@ -153,7 +154,6 @@ test-suite marconi-test
   --------------------------
   build-depends:
     , cardano-api:{cardano-api, gen}
-    , cardano-testnet
     , iohk-monitoring
     , ouroboros-network
     , plutus-ledger-api
@@ -180,3 +180,38 @@ test-suite marconi-test
     , temporary
 
   ghc-options:    -fobject-code
+  other-modules:
+    Test.Assert
+    Test.Base
+    Test.Process
+    Test.Runtime
+    Testnet.Babbage
+    Testnet.Byron
+    Testnet.Cardano
+    Testnet.Conf
+    Testnet.List
+    Testnet.Shelley
+    Testnet.SubmitApi
+    Testnet.Utils
+
+  build-depends:
+    , aeson
+    , aeson-pretty
+    , base16-bytestring
+    , cardano-api
+    , cardano-cli
+    , cardano-crypto-class
+    , cardano-crypto-wrapper
+    , cardano-ledger-byron
+    , cardano-node
+    , exceptions
+    , http-client
+    , http-types
+    , process
+    , random
+    , resourcet
+    , safe-exceptions
+    , text
+    , time
+    , transformers
+    , unordered-containers
