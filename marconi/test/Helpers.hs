@@ -145,3 +145,16 @@ workspace prefixPath f = GHC.withFrozenCallStack $ do
   f ws
   when (IO.os /= "mingw32" && maybeKeepWorkspace /= Just "1") $ do
     H.evalIO $ IO.removeDirectoryRecursive ws
+
+
+p2 :: (MonadIO m, Show a) => String -> a -> m ()
+p2 label a = liftIO $ putStrLn $ label <> ": " <> show a
+
+p :: (MonadIO m) => String -> m ()
+p label = liftIO $ putStrLn label
+
+exit :: Show a => a -> b
+exit a = error $ "EXIT: " <> show a
+
+exit_ :: b
+exit_ = error "EXIT"
