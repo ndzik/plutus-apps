@@ -920,7 +920,7 @@ toCardanoTxOutWithOutputDatum ::
     -> m TxOut
 toCardanoTxOutWithOutputDatum txout = do
   networkId <- gets $ pNetworkId . cpsParams
-  throwToCardanoError $ TxOut <$> C.toCardanoTxOut networkId C.toCardanoTxOutDatum txout
+  throwToCardanoError $ TxOut <$> C.toCardanoTxOut networkId txout
 
 throwToCardanoError :: MonadError MkTxError m => Either C.ToCardanoError a -> m a
 throwToCardanoError (Left err) = throwError $ ToCardanoError err
