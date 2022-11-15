@@ -13,12 +13,10 @@ sys.path.append(os.path.abspath('exts'))
 
 # -- Doc config values
 marlowe_playground_url = "https://alpha.marlowe.iohkdev.io/"
-plutus_playground_url = "https://alpha.plutus.iohkdev.io/"
 
 rst_epilog = """
-.. _Plutus Playground: {0}
-.. _Marlowe Playground: {1}
-""".format(plutus_playground_url, marlowe_playground_url)
+.. _Marlowe Playground: {0}
+""".format(marlowe_playground_url)
 
 # -- RTD configuration ------------------------------------------------
 

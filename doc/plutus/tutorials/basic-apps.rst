@@ -1,7 +1,7 @@
 .. highlight:: haskell
 .. _basic_apps_tutorial:
 
-Writing a basic Plutus app in the Plutus Playground
+Writing a basic Plutus app in the Plutus Playground TODO(pr)
 ===================================================
 
 :term:`Plutus apps<contract application>` are programs that run off-chain and manage active contract instances.
