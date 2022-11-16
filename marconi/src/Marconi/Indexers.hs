@@ -14,11 +14,10 @@ import Control.Concurrent (forkIO)
 import Control.Concurrent.QSemN (QSemN, newQSemN, signalQSemN, waitQSemN)
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TChan (TChan, dupTChan, newBroadcastTChanIO, readTChan, writeTChan)
-import Control.Exception (bracket_)
 import Control.Lens (makeClassy)
 import Control.Lens.Combinators (imap)
 import Control.Lens.Operators ((&), (^.))
-import Control.Monad (unless, void)
+import Control.Monad (void)
 import Data.Foldable (foldl')
 import Data.List (findIndex)
 import Data.Map (Map)
@@ -35,7 +34,7 @@ import Cardano.Api.Byron qualified as Byron
 import "cardano-api" Cardano.Api.Shelley qualified as Shelley
 import Cardano.Ledger.Alonzo.TxWitness qualified as Alonzo
 import Cardano.Streaming (ChainSyncEvent (RollBackward, RollForward))
-import Control.Concurrent.STM.TMVar (TMVar, putTMVar, takeTMVar, tryReadTMVar)
+import Control.Concurrent.STM.TMVar (TMVar, putTMVar)
 import Marconi.Index.Datum (DatumIndex)
 import Marconi.Index.Datum qualified as Datum
 import Marconi.Index.ScriptTx qualified as ScriptTx
@@ -171,16 +170,13 @@ queryAwareUtxoWorker
     :: UtxoQueryComm    -- ^  used to communicate with query threads
     -> TargetAddresses  -- ^ Target addresses to filter for
     -> Worker
-queryAwareUtxoWorker (UtxoQueryComm qreq utxoIndexer) targetAddresses Coordinator{_barrier} ch path =
-   Utxo.open path (Utxo.Depth 2160) >>= innerLoop
+queryAwareUtxoWorker (UtxoQueryComm _ utxoIndexer) targetAddresses Coordinator{_barrier} ch path =
+   Utxo.open path (Utxo.Depth 2160) >>= bootstrapQuery >>= innerLoop
   where
+    bootstrapQuery :: UtxoIndex -> IO UtxoIndex
+    bootstrapQuery index = (atomically $ putTMVar utxoIndexer index ) >> pure index
     innerLoop :: UtxoIndex -> IO ()
     innerLoop index = do
-        isquery <- atomically . tryReadTMVar $ qreq
-        unless (null isquery) $ bracket_
-            (atomically (takeTMVar qreq ) ) -- block
-            (atomically (takeTMVar qreq ) ) -- unblock
-            (atomically  (putTMVar utxoIndexer index) ) -- allow the query thread to access in-memory utxos
         signalQSemN _barrier 1
         event <- atomically $ readTChan ch
         case event of
